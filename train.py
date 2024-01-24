@@ -2,22 +2,23 @@ import os
 import pandas as pd
 import json
 import torch
-import torch.onnx
 import shutil
 from os import system
 from datetime import datetime
 from datasets import load_dataset
-from peft import LoraConfig, prepare_model_for_int8_training
+from peft import LoraConfig
+from peft.utils.other import prepare_model_for_kbit_training
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
     HfArgumentParser,
     AutoTokenizer,
-    TrainingArguments,
+    TrainingArguments
 )
 from trl import SFTTrainer
 
+print( "Loading the dataset..." )
 df = pd.read_csv( "medquad.csv" )
 df = df.iloc[ :, :2 ]
 df.columns = [ "text", 'label' ]
@@ -34,14 +35,14 @@ result = json.loads( result )
 with open( 'data.json', 'w' ) as json_file:
     json.dump( result, json_file )
 
-model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+modelName = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 model = AutoModelForCausalLM.from_pretrained(
-    model_id,
+    modelName,
     device_map = 'auto',
     trust_remote_code = True,
     token = False,
 )
-model = prepare_model_for_int8_training( model )
+model = prepare_model_for_kbit_training( model )
 
 peft_config = LoraConfig(
     r = 32,
@@ -52,14 +53,14 @@ peft_config = LoraConfig(
 )
 model.add_adapter( peft_config )
 model.config.pretraining_tp = 1
-tokenizer = AutoTokenizer.from_pretrained( model_id, trust_remote_code = True )
+tokenizer = AutoTokenizer.from_pretrained( modelName, trust_remote_code = True, use_fast=False )
 tokenizer.pad_token = tokenizer.eos_token
 
-if os.path.isdir( "./trained" ):
-    shutil.rmtree( "./trained" )
+if os.path.isdir( "./temp" ):
+    shutil.rmtree( "./temp" )
 
 training_arguments = TrainingArguments(
-    output_dir = "./trained",
+    output_dir = "./temp",
     num_train_epochs = 4,
     per_device_train_batch_size = 2,
     gradient_accumulation_steps = 1,
@@ -98,10 +99,12 @@ trainer = SFTTrainer(
     packing=False,
 )
 
-print( "training, please wait" )
 trainer.train()
 
-directory = "TinyLlama"
+if os.path.isdir( "./temp" ):
+    shutil.rmtree( "./temp" )
+
+directory = "trained"
 
 if os.path.isdir( directory ):
     shutil.rmtree( directory )
