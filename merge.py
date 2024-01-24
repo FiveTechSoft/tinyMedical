@@ -20,7 +20,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 print( f"Loading PEFT: {peft}" )
-model = PeftModel.from_pretrained( baseModel, peft )
+model = PeftModel.from_pretrained( model, peft )
 print( "Running merge_and_unload" )
 model = model.merge_and_unload()
 
